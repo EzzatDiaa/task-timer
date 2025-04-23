@@ -1,0 +1,30 @@
+{
+  "name": "macos-task-timer",
+  "version": "1.0.0",
+  "description": "A task timer application for macOS",
+  "scripts": {
+    "frontend:dev": "cd frontend && npm run dev",
+    "backend:dev": "cd backend && npm run start:dev",
+    "dev": "concurrently \"npm run frontend:dev\" \"npm run backend:dev\"",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install"
+  },
+  "keywords": [
+    "task",
+    "timer",
+    "macos",
+    "nextjs",
+    "nestjs"
+  ],
+  "author": "Ezzat",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typeorm": "^0.3.22"
+  },
+  "dependencies": {
+    "@nestjs/config": "^4.0.2",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "dotenv": "^16.5.0"
+  }
+}
