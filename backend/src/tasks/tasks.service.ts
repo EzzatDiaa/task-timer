@@ -12,7 +12,6 @@ import {
   TimerOperation,
   TimerOperationDto,
 } from '../tasks/dto/timer-operation.dto';
-import { now } from 'mongoose';
 
 @Injectable()
 export class TasksService {
@@ -21,14 +20,26 @@ export class TasksService {
     private tasksRepository: Repository<Task>,
   ) {}
 
-  async findAll(): Promise<Task[]> {
-    return this.tasksRepository.find();
+  async findAll(filter: { userId?: string } = {}): Promise<Task[]> {
+    return this.tasksRepository.find({
+      where: filter,
+      order: {
+        createdAt: 'DESC',
+      },
+    });
   }
 
-  async findOne(id: string): Promise<Task> {
-    const task = await this.tasksRepository.findOne({ where: { id } });
+  async findOne(id: string, userId?: string): Promise<Task> {
+    const whereClause: any = { id };
+    if (userId) {
+      whereClause.userId = userId;
+    }
+
+    const task = await this.tasksRepository.findOne({ where: whereClause });
     if (!task) {
-      throw new NotFoundException(`Task with ID ${id} not found`);
+      throw new NotFoundException(
+        `Task with ID ${id} not found${userId ? " or you don't have access" : ''}`,
+      );
     }
     return task;
   }
@@ -38,16 +49,28 @@ export class TasksService {
     return this.tasksRepository.save(task);
   }
 
-  async update(id: string, updateTaskDto: UpdateTaskDto): Promise<Task> {
-    const task = await this.findOne(id);
-    const updateTask = { ...task, ...updateTaskDto };
-    return this.tasksRepository.save(updateTask);
+  async update(
+    id: string,
+    updateTaskDto: UpdateTaskDto,
+    userId: string,
+  ): Promise<Task> {
+    // First verify the task exists and belongs to user
+    const task = await this.findOne(id, userId);
+
+    // Update the task
+    const updatedTask = { ...task, ...updateTaskDto };
+    return this.tasksRepository.save(updatedTask);
   }
 
-  async remove(id: string): Promise<void> {
-    const result = await this.tasksRepository.delete(id);
+  async remove(id: string, userId: string): Promise<void> {
+    // First verify the task exists and belongs to user
+    await this.findOne(id, userId);
+
+    const result = await this.tasksRepository.delete({ id, userId });
     if (result.affected === 0) {
-      throw new NotFoundException(`Task with ID ${id} not found`);
+      throw new NotFoundException(
+        `Task with ID ${id} not found or you don't have access`,
+      );
     }
   }
 
@@ -62,19 +85,19 @@ export class TasksService {
     });
     if (!task) {
       throw new NotFoundException(
-        `Task with ID ${taskId} not found or you do not have acess to it`,
+        `Task with ID ${taskId} not found or you do not have access to it`,
       );
     }
     switch (operation) {
-      case TimerOperation.Start:
+      case TimerOperation.START:
         return this.startTimer(task);
-      case TimerOperation.Stop:
+      case TimerOperation.STOP:
         return this.stopTimer(task);
-      case TimerOperation.Pause:
+      case TimerOperation.PAUSE:
         return this.pauseTimer(task);
-      case TimerOperation.Resume:
+      case TimerOperation.RESUME:
         return this.resumeTimer(task);
-      case TimerOperation.Reset:
+      case TimerOperation.RESET:
         return this.resetTimer(task);
       default:
         throw new BadRequestException(`Invalid timer operation: ${operation}`);
@@ -82,7 +105,7 @@ export class TasksService {
   }
 
   private async startTimer(task: Task): Promise<Task> {
-    // validte task status
+    // validate task status
     if (task.timerStatus === TimerStatus.RUNNING) {
       throw new BadRequestException(`Task is already running`);
     }
@@ -118,13 +141,24 @@ export class TasksService {
     if (task.timerStatus !== TimerStatus.RUNNING) {
       throw new BadRequestException(`Task is not running`);
     }
+
+    // Check if startedAt is null before using it
+    if (!task.startedAt) {
+      throw new BadRequestException(`Task has no start time`);
+    }
+
     const now = new Date();
     task.pausedAt = now;
     task.timerStatus = TimerStatus.PAUSED;
+
     const elapsedTime = Math.floor(
       (now.getTime() - task.startedAt.getTime()) / 1000,
     );
-    task.remainingTime = Math.max(0, task.remainingTime - elapsedTime);
+
+    task.remainingTime = Math.max(
+      0,
+      task.remainingTime !== null ? task.remainingTime - elapsedTime : 0,
+    );
 
     return this.tasksRepository.save(task);
   }
@@ -139,6 +173,7 @@ export class TasksService {
     if (task.timerStatus !== TimerStatus.PAUSED) {
       throw new BadRequestException(`Task is not paused`);
     }
+
     const now = new Date();
     task.startedAt = now;
     task.timerStatus = TimerStatus.RUNNING;
@@ -148,35 +183,96 @@ export class TasksService {
   }
 
   private async stopTimer(task: Task): Promise<Task> {
-    // stop only for COUNTDOWN timerType
-    if (task.timerType !== TimerType.COUNTDOWN) {
-      throw new BadRequestException(
-        `Stop operation is only valid for COUNTDOWN timer type`,
-      );
+    if (
+      task.timerStatus !== TimerStatus.RUNNING &&
+      task.timerStatus !== TimerStatus.PAUSED
+    ) {
+      throw new BadRequestException('Timer is not active');
     }
-    if (task.timerStatus !== TimerStatus.RUNNING) {
-      throw new BadRequestException(`Task is not running`);
-    }
-    task.timerStatus = TimerStatus.IDLE;
-    task.remainingTime = null;
-    task.startedAt = null;
-    task.pausedAt = null;
+
+    task.timerStatus = TimerStatus.COMPLETED;
+    task.isCompleted = true;
 
     return this.tasksRepository.save(task);
   }
 
   private async resetTimer(task: Task): Promise<Task> {
-    // reset only for COUNTDOWN timerType
-    if (task.timerType !== TimerType.COUNTDOWN) {
-      throw new BadRequestException(
-        `Reset operation is only valid for COUNTDOWN timer type`,
-      );
-    }
+    // Reset timer to initial state
     task.timerStatus = TimerStatus.IDLE;
-    task.remainingTime = task.countdownDuration;
     task.startedAt = null;
     task.pausedAt = null;
 
+    if (task.timerType === TimerType.COUNTDOWN) {
+      task.remainingTime = task.countdownDuration;
+    }
+
+    task.isCompleted = false;
+
     return this.tasksRepository.save(task);
+  }
+
+  async checkTimerStatus(
+    taskId: string,
+    userId: string,
+  ): Promise<{
+    status: TimerStatus;
+    remainingTime?: number;
+    completed: boolean;
+  }> {
+    const task = await this.tasksRepository.findOne({
+      where: { id: taskId, userId },
+    });
+    if (!task) {
+      throw new NotFoundException(`Task with ID ${taskId} not found`);
+    }
+
+    let remainingTime: any;
+
+    if (
+      task.timerType === TimerType.COUNTDOWN &&
+      task.timerStatus === TimerStatus.RUNNING
+    ) {
+      const now = new Date();
+      // we need to check if the startedAt is null
+      if (!task.startedAt || !task.remainingTime) {
+        throw new BadRequestException(
+          `Task has no start time or remaining time`,
+        );
+      }
+      const elapsedTime = Math.floor(
+        now.getTime() - task.startedAt.getTime() / 1000,
+      );
+      remainingTime = Math.max(0, task.remainingTime - elapsedTime);
+
+      // Check if the timer has finished
+      if (remainingTime === 0 && task.timerStatus === TimerStatus.RUNNING) {
+        task.timerStatus = TimerStatus.COMPLETED;
+        task.isCompleted = true;
+        await this.tasksRepository.save(task);
+      }
+    } else if (
+      task.timerType === TimerType.ALARM &&
+      task.timerStatus === TimerStatus.RUNNING
+    ) {
+      // Check if alarm time has passed
+      const now = new Date();
+      if (!task.alarmTime) {
+        throw new BadRequestException(`Task has no alarm time`);
+      }
+      if (
+        new Date(task.alarmTime) <= now &&
+        task.timerStatus === TimerStatus.RUNNING
+      ) {
+        task.timerStatus = TimerStatus.COMPLETED;
+        task.isCompleted = true;
+        await this.tasksRepository.save(task);
+      }
+    }
+    return {
+      status: task.timerStatus,
+      remainingTime:
+        task.timerType === TimerType.COUNTDOWN ? remainingTime : null,
+      completed: task.isCompleted,
+    };
   }
 }
