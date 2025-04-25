@@ -4,7 +4,9 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
 } from 'typeorm';
+import { User } from 'src/users/entities/user.entity';
 
 export enum TimerType {
   ALARM = 'alarm',
@@ -43,4 +45,10 @@ export class Task {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @ManyToOne(() => User, (user) => user.tasks)
+  user: User; // Many tasks can belong to one user
+
+  @Column({ nullable: true })
+  userId: string; // Foreign key to the user who created the task
 }
