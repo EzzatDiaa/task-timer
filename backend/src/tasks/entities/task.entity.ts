@@ -13,6 +13,13 @@ export enum TimerType {
   COUNTDOWN = 'countdown',
 }
 
+export enum TimerStatus {
+  IDLE = 'idle',
+  RUNNING = 'running',
+  PAUSED = 'paused',
+  COMPLETED = 'completed',
+}
+
 @Entity()
 export class Task {
   @PrimaryGeneratedColumn('uuid')
@@ -31,11 +38,27 @@ export class Task {
   })
   timerType: TimerType;
 
-  @Column({ nullable: true })
-  alarmTime: Date;
+  @Column({
+    type: 'enum',
+    enum: TimerStatus,
+    default: TimerStatus.IDLE,
+  })
+  timerStatus: TimerStatus;
 
   @Column({ nullable: true })
-  countdownDuration: number; // in seconds
+  startedAt: Date | null; // when the timer started
+
+  @Column({ nullable: true })
+  pausedAt: Date | null; // when the timer was paused
+
+  @Column({ nullable: true })
+  remainingTime: number | null; // for resumed countdown timer
+
+  @Column({ nullable: true })
+  alarmTime: Date | null;
+
+  @Column({ nullable: true })
+  countdownDuration: number | null; // in seconds
 
   @Column({ default: false })
   isCompleted: boolean;

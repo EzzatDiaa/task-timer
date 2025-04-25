@@ -2,8 +2,14 @@
 // user has id, mail, password, first_name, last_name, created_at, updated_at
 
 import { Task } from 'src/tasks/entities/task.entity';
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
-
+import {
+  Column,
+  Entity,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+} from 'typeorm';
 
 @Entity('users')
 export class User {
@@ -17,10 +23,10 @@ export class User {
   password: string;
 
   @Column()
-  first_name: string;
+  firstName: string;
 
   @Column()
-  last_name: string;
+  lastName: string;
 
   @CreateDateColumn({ type: 'timestamp' })
   created_at: Date;
@@ -28,6 +34,6 @@ export class User {
   @UpdateDateColumn({ type: 'timestamp' })
   updated_at: Date;
 
-  @OneToMany(() => Task, task => task.user))
-  tasks: Task[]; // One user can have many tasks
+  @OneToMany(() => Task, (task) => task.user)
+  tasks: Task[];
 }

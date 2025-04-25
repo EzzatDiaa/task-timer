@@ -6,11 +6,14 @@ import {
   Patch,
   Param,
   Delete,
+  Request,
 } from '@nestjs/common';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { Task } from './entities/task.entity';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { UseGuards } from '@nestjs/common/decorators/core/use-guards.decorator';
 @Controller('tasks')
 export class TasksController {
   constructor(private readonly tasksService: TasksService) {}
@@ -26,8 +29,12 @@ export class TasksController {
   }
 
   @Post()
-  create(@Body() createTaslDtp: CreateTaskDto): Promise<Task> {
-    return this.tasksService.create(createTaslDtp);
+  @UseGuards(JwtAuthGuard)
+  create(
+    @Body() createTaskDto: CreateTaskDto,
+    @Request() req: any,
+  ): Promise<Task> {
+    return this.tasksService.create(createTaskDto, req.user.id);
   }
 
   @Patch(':id')
