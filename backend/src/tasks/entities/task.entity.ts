@@ -45,19 +45,19 @@ export class Task {
   })
   timerStatus: TimerStatus;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   startedAt: Date | null; // when the timer started
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   pausedAt: Date | null; // when the timer was paused
 
-  @Column({ nullable: true })
+  @Column({ type: 'integer', nullable: true })
   remainingTime: number | null; // for resumed countdown timer
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   alarmTime: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'integer', nullable: true })
   countdownDuration: number | null; // in seconds
 
   @Column({ default: false })
