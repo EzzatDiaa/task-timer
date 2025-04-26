@@ -49,7 +49,7 @@ const AuthContext = createContext<AuthContextType>({
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 // AuthProvider component
-export const AuthPRovider: React.FC<{ children: ReactNode }> = ({
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const [user, setUser] = useState<User | null>(null);
