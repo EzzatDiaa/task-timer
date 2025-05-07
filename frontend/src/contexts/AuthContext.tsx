@@ -8,9 +8,8 @@ import React, {
   ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import { initializeSocket, closeSocket } from "@/services/socket.service";
 
-// User type
+// user type
 interface User {
   id: string;
   email: string;
@@ -19,6 +18,7 @@ interface User {
 }
 
 // Auth context state
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
@@ -45,8 +45,8 @@ const AuthContext = createContext<AuthContextType>({
   error: null,
 });
 
-// The API URL
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+// the API URL
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
 // AuthProvider component
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
@@ -70,18 +70,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     setIsLoading(false);
   }, []);
 
-  // Initialize socket when token changes
-  useEffect(() => {
-    if (token) {
-      // Initialize socket connection with the token
-      initializeSocket(token);
-    } else {
-      // Close socket when logged out
-      closeSocket();
-    }
-  }, [token]);
-
   // Login function
+
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     setError(null);
@@ -90,7 +80,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       const response = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          "Content-type": "application/json",
         },
         body: JSON.stringify({ email, password }),
       });
@@ -105,9 +95,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
       setToken(data.access_token);
       setUser(data.user);
-
-      // Initialize socket with the new token
-      initializeSocket(data.access_token);
 
       router.push("/tasks");
     } catch (error) {
@@ -149,9 +136,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       setToken(data.access_token);
       setUser(data.user);
 
-      // Initialize socket with the new token
-      initializeSocket(data.access_token);
-
       // Redirect to tasks page
       router.push("/tasks");
     } catch (err) {
@@ -161,13 +145,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
   };
 
-  // Logout function
+  // logout function
   const logout = () => {
     setIsLoading(true);
     setError(null);
-
-    // Close the socket connection
-    closeSocket();
 
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -176,7 +157,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     setUser(null);
 
     router.push("/login");
-    setIsLoading(false);
   };
 
   return (
@@ -195,7 +175,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     </AuthContext.Provider>
   );
 };
-
 // Custom hook to use the AuthContext
 export const useAuth = () => {
   const context = useContext(AuthContext);

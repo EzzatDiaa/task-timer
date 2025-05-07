@@ -41,6 +41,9 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     this.logger.log('Module initialized');
+    if (this.timerCheckInterval) {
+      clearInterval(this.timerCheckInterval);
+    }
     await this.loadActiveTimers(); // pasued or running timers
 
     this.timerCheckInterval = setInterval(() => this.checkActiveTimers(), 1000);
@@ -120,9 +123,7 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
       } else if (timer.timerType === TimerType.COUNTDOWN) {
         // For countdown timers, calculate elapsed time and check if completed
         if (timer.remainingTime !== undefined) {
-          const elapsedSeconds = Math.floor(
-            (now.getTime() - timer.startedAt.getTime()) / 1000,
-          );
+          const elapsedSeconds = 1;
           const currentRemaining = Math.max(
             0,
             timer.remainingTime - elapsedSeconds,
@@ -130,6 +131,10 @@ export class TasksService implements OnModuleInit, OnModuleDestroy {
 
           // Update the remaining time in our tracker
           timer.remainingTime = currentRemaining;
+
+          this.logger.debug(
+            `Timer ${taskId}: ${timer.remainingTime}s -> ${currentRemaining}`,
+          );
 
           // If timer has reached zero, mark as completed
           if (currentRemaining === 0) {

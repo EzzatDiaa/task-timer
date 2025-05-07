@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from "react";
 import { Task, TimerType, TimerStatus, TimerOperation } from "@/types/task";
+import { taskAPI } from "@/services/api";
 import Link from "next/link";
 import { formatDistanceToNow, format } from "date-fns";
-import { useTimers } from "@/contexts/TimerContext";
 
 interface TaskCardProps {
   task: Task;
@@ -24,46 +24,25 @@ const formatTime = (seconds: number): string => {
 };
 
 const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate }) => {
-  const {
-    getTimerState,
-    startTimer,
-    stopTimer,
-    pauseTimer,
-    resumeTimer,
-    resetTimer,
-  } = useTimers();
-
+  const [status, setStatus] = useState<TimerStatus>(task.timerStatus);
+  const [remainingTime, setRemainingTime] = useState<number | undefined>(
+    task.remainingTime,
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [localRemainingTime, setLocalRemainingTime] = useState<
-    number | undefined
-  >(task.remainingTime);
 
-  // Get timer state from context
-  const timerState = getTimerState(task.id);
-  const status = timerState?.status || task.timerStatus;
-  const isPending = timerState?.isPending || false;
-
-  // Update local remaining time when timerState changes
-  useEffect(() => {
-    if (timerState && timerState.remainingTime !== undefined) {
-      setLocalRemainingTime(timerState.remainingTime);
-    }
-  }, [timerState]);
-
-  // Timer interval for countdown visualization
+  // Timer interval for countdown
   useEffect(() => {
     let interval: NodeJS.Timeout;
 
-    // If countdown timer is running, update remaining time every second locally
+    // If countdown timer is running, update remaining time every second
     if (
       task.timerType === TimerType.COUNTDOWN &&
       status === TimerStatus.RUNNING &&
-      localRemainingTime !== undefined &&
-      localRemainingTime > 0
+      remainingTime !== undefined
     ) {
       interval = setInterval(() => {
-        setLocalRemainingTime((prev) => {
+        setRemainingTime((prev) => {
           if (prev === undefined || prev <= 0) {
             clearInterval(interval);
             return 0;
@@ -73,31 +52,61 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate }) => {
       }, 1000);
     }
 
+    // Periodically check timer status from server
+    const statusInterval = setInterval(() => {
+      if (status === TimerStatus.RUNNING) {
+        checkTimerStatus();
+      }
+    }, 5000); // Check every 5 seconds
+
     return () => {
-      if (interval) clearInterval(interval);
+      clearInterval(interval);
+      clearInterval(statusInterval);
     };
-  }, [task.timerType, status, localRemainingTime]);
+  }, [task.id, task.timerType, status, remainingTime]);
+
+  const checkTimerStatus = async () => {
+    try {
+      const response = await taskAPI.checkTimerStatus(task.id);
+      setStatus(response.status);
+
+      if (response.remainingTime !== undefined) {
+        setRemainingTime(response.remainingTime);
+      }
+
+      if (
+        response.status === TimerStatus.COMPLETED &&
+        status !== TimerStatus.COMPLETED
+      ) {
+        // Play notification sound
+        const audio = new Audio("/notification.mp3");
+        audio.play();
+
+        // Show system notification
+        if (Notification.permission === "granted") {
+          new Notification("Task Timer", {
+            body: `Task "${task.title}" has completed!`,
+          });
+        }
+
+        // Trigger refresh of parent component
+        onUpdate();
+      }
+    } catch (err) {
+      console.error("Error checking timer status:", err);
+    }
+  };
 
   const handleTimerOperation = async (operation: TimerOperation) => {
+    setIsLoading(true);
     setError(null);
 
     try {
-      switch (operation) {
-        case TimerOperation.START:
-          await startTimer(task.id);
-          break;
-        case TimerOperation.STOP:
-          await stopTimer(task.id);
-          break;
-        case TimerOperation.PAUSE:
-          await pauseTimer(task.id);
-          break;
-        case TimerOperation.RESUME:
-          await resumeTimer(task.id);
-          break;
-        case TimerOperation.RESET:
-          await resetTimer(task.id);
-          break;
+      const updatedTask = await taskAPI.timerOperation(task.id, operation);
+      setStatus(updatedTask.timerStatus);
+
+      if (updatedTask.remainingTime !== undefined) {
+        setRemainingTime(updatedTask.remainingTime);
       }
 
       // Request notification permission if starting a timer
@@ -107,12 +116,16 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate }) => {
       ) {
         Notification.requestPermission();
       }
+
+      onUpdate();
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
           : "Failed to perform timer operation",
       );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -139,12 +152,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate }) => {
         <button
           key="start"
           onClick={() => handleTimerOperation(TimerOperation.START)}
-          disabled={isLoading || isPending}
-          className={`bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm ${
-            isPending ? "opacity-70" : ""
-          }`}
+          disabled={isLoading}
+          className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm"
         >
-          {isPending ? "Starting..." : "Start"}
+          Start
         </button>,
       );
     }
@@ -154,18 +165,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate }) => {
         <button
           key="pause"
           onClick={() => handleTimerOperation(TimerOperation.PAUSE)}
-          disabled={
-            isLoading || isPending || task.timerType === TimerType.ALARM
-          }
-          className={`${
-            task.timerType === TimerType.COUNTDOWN
-              ? `bg-yellow-500 hover:bg-yellow-600 ${isPending ? "opacity-70" : ""}`
-              : "bg-gray-300 cursor-not-allowed"
-          } text-white px-3 py-1 rounded text-sm mr-2`}
+          disabled={isLoading || task.timerType === TimerType.ALARM}
+          className={`${task.timerType === TimerType.COUNTDOWN ? "bg-yellow-500 hover:bg-yellow-600" : "bg-gray-300 cursor-not-allowed"} text-white px-3 py-1 rounded text-sm mr-2`}
         >
-          {isPending && timerState?.pendingOperation === TimerOperation.PAUSE
-            ? "Pausing..."
-            : "Pause"}
+          Pause
         </button>,
       );
 
@@ -173,14 +176,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate }) => {
         <button
           key="stop"
           onClick={() => handleTimerOperation(TimerOperation.STOP)}
-          disabled={isLoading || isPending}
-          className={`bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm ${
-            isPending ? "opacity-70" : ""
-          }`}
+          disabled={isLoading}
+          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
         >
-          {isPending && timerState?.pendingOperation === TimerOperation.STOP
-            ? "Stopping..."
-            : "Stop"}
+          Stop
         </button>,
       );
     }
@@ -190,14 +189,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate }) => {
         <button
           key="resume"
           onClick={() => handleTimerOperation(TimerOperation.RESUME)}
-          disabled={isLoading || isPending}
-          className={`bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm mr-2 ${
-            isPending ? "opacity-70" : ""
-          }`}
+          disabled={isLoading}
+          className="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm mr-2"
         >
-          {isPending && timerState?.pendingOperation === TimerOperation.RESUME
-            ? "Resuming..."
-            : "Resume"}
+          Resume
         </button>,
       );
 
@@ -205,14 +200,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate }) => {
         <button
           key="stop"
           onClick={() => handleTimerOperation(TimerOperation.STOP)}
-          disabled={isLoading || isPending}
-          className={`bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm ${
-            isPending ? "opacity-70" : ""
-          }`}
+          disabled={isLoading}
+          className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm"
         >
-          {isPending && timerState?.pendingOperation === TimerOperation.STOP
-            ? "Stopping..."
-            : "Stop"}
+          Stop
         </button>,
       );
     }
@@ -222,14 +213,10 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate }) => {
         <button
           key="reset"
           onClick={() => handleTimerOperation(TimerOperation.RESET)}
-          disabled={isLoading || isPending}
-          className={`bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm ${
-            isPending ? "opacity-70" : ""
-          }`}
+          disabled={isLoading}
+          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm"
         >
-          {isPending && timerState?.pendingOperation === TimerOperation.RESET
-            ? "Resetting..."
-            : "Reset"}
+          Reset
         </button>,
       );
     }
@@ -244,18 +231,11 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate }) => {
           <p className="text-sm text-gray-600 mb-1">
             Duration: {formatTime(task.countdownDuration || 0)}
           </p>
-          {status === TimerStatus.RUNNING &&
-            localRemainingTime !== undefined && (
-              <p className="text-lg font-bold text-blue-600">
-                Remaining: {formatTime(localRemainingTime)}
-              </p>
-            )}
-          {status === TimerStatus.PAUSED &&
-            localRemainingTime !== undefined && (
-              <p className="text-lg font-bold text-yellow-600">
-                Paused: {formatTime(localRemainingTime)}
-              </p>
-            )}
+          {status === TimerStatus.RUNNING && remainingTime !== undefined && (
+            <p className="text-lg font-bold text-blue-600">
+              Remaining: {formatTime(remainingTime)}
+            </p>
+          )}
         </div>
       );
     } else if (task.timerType === TimerType.ALARM) {
@@ -288,81 +268,9 @@ const TaskCard: React.FC<TaskCardProps> = ({ task, onUpdate }) => {
 
     return (
       <span className={`${badges[status]} text-xs px-2 py-1 rounded-full`}>
-        {isPending
-          ? "Updating..."
-          : status.charAt(0).toUpperCase() + status.slice(1)}
+        {status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
     );
-  };
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout;
-
-    // Always maintain local countdown if this is a countdown timer that's running
-    if (
-      task.timerType === TimerType.COUNTDOWN &&
-      status === TimerStatus.RUNNING &&
-      localRemainingTime !== undefined &&
-      localRemainingTime > 0
-    ) {
-      intervalId = setInterval(() => {
-        setLocalRemainingTime((prev) => {
-          if (prev === undefined || prev <= 0) {
-            // If we hit zero locally, check with server
-            checkServerStatus();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [task.timerType, status, localRemainingTime]);
-
-  // Add a function to check with the server:
-  const checkServerStatus = async () => {
-    try {
-      const response = await taskAPI.checkTimerStatus(task.id);
-
-      // Update local state with server state
-      if (response.status !== status) {
-        // If server status is different, update it
-        console.log(
-          `Server status (${response.status}) is different from local status (${status}), updating`,
-        );
-
-        // If the server says it's completed, trigger appropriate actions
-        if (response.status === TimerStatus.COMPLETED) {
-          handleTimerCompletion();
-        }
-      }
-    } catch (error) {
-      console.error("Failed to check server status:", error);
-    }
-  };
-
-  // Add a function to handle timer completion:
-  const handleTimerCompletion = () => {
-    // Play notification sound
-    try {
-      const audio = new Audio("/notification.mp3");
-      audio.play().catch((e) => console.error("Failed to play sound:", e));
-    } catch (e) {
-      console.error("Error playing sound:", e);
-    }
-
-    // Show browser notification
-    if (Notification && Notification.permission === "granted") {
-      try {
-        new Notification("Timer Completed", {
-          body: `Task "${task.title}" has completed!`,
-        });
-      } catch (e) {
-        console.error("Error showing notification:", e);
-      }
-    }
   };
 
   return (

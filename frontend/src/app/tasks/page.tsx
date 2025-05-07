@@ -6,10 +6,8 @@ import { taskAPI } from "@/services/api";
 import AppLayout from "@/components/layout/AppLayout";
 import TaskCard from "@/components/tasks/TaskCard";
 import Link from "next/link";
-import { useTimers } from "@/contexts/TimerContext";
 
 const TasksPage = () => {
-  const { refreshTimers } = useTimers();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -22,8 +20,6 @@ const TasksPage = () => {
     try {
       const data = await taskAPI.getAllTasks();
       setTasks(data);
-      // Also refresh the timer context
-      refreshTimers();
     } catch (err) {
       setError("Failed to fetch tasks. Please try again later.");
       console.error(err);
