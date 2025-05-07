@@ -1,5 +1,5 @@
 // Base API URL
-const API_URL = "http://localhost:3000";
+const API_URL = "http://localhost:3001";
 
 // Helper function for making authenticated requests
 async function fetchWithAuth(endpoint: string, options: RequestInit = {}) {

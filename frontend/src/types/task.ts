@@ -37,6 +37,7 @@ export interface Task {
   pausedAt?: string; // when the timer was paused
   isCompleted?: boolean; // when the timer was completed
   userId: string; // user who created the task
+  isAutoRepeat?: boolean; // whether the task should repeat automatically
 }
 
 // create Task DTO
@@ -46,6 +47,7 @@ export interface CreateTaskDto {
   timerType: TimerType;
   alarmTime?: string;
   countdownDuration?: number;
+  isAutoRepeat?: boolean;
 }
 
 // update Task DTO
@@ -56,6 +58,7 @@ export interface UpdateTaskDto {
   alarmTime?: string;
   countdownDuration?: number;
   isCompleted?: boolean;
+  isAutoRepeat?: boolean;
 }
 
 // Timer Operations DTO

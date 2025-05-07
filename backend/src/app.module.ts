@@ -7,9 +7,13 @@ import { databaseConfig } from './config/database.config';
 import { TasksModule } from './tasks/tasks.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { EventsModule } from './events/events.module';
 
 @Module({
   imports: [
+    EventEmitterModule.forRoot(),
+    EventEmitterModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
@@ -22,6 +26,7 @@ import { AuthModule } from './auth/auth.module';
     TasksModule,
     UsersModule,
     AuthModule,
+    EventsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

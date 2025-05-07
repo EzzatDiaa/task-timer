@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsDate,
   IsEnum,
+  IsBoolean,
 } from 'class-validator';
 import { TimerType } from '../entities/task.entity';
 
@@ -29,4 +30,8 @@ export class CreateTaskDto {
   @IsOptional()
   @IsNumber()
   countdownDuration?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isAutoRepeat?: boolean;
 }

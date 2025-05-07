@@ -74,4 +74,7 @@ export class Task {
 
   @Column({ nullable: true })
   userId: string; // Foreign key to the user who created the task
+
+  @Column({ nullable: true })
+  isAutoRepeat: boolean; // Whether the task should be auto-completed when the timer ends
 }
